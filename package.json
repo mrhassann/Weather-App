@@ -1,0 +1,9 @@
+{
+  "name": "skycast-weather",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time weather PWA powered by Open-Meteo (plain HTML/CSS/JS, no build step).",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

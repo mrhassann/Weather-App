@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Skycast — Live Weather</title>
+  <meta name="description" content="Real-time weather, hourly & 7-day forecast and air quality — powered by Open-Meteo." />
+  <meta name="theme-color" content="#3a7bd5" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <!-- Fonts: Inter (Latin) + Cairo (Arabic) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Animated weather background (filled by js/sky.js) -->
+  <div id="sky" class="sky" aria-hidden="true"></div>
+
+  <div class="app">
+    <!-- ───────── Header ───────── -->
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true"><circle cx="24" cy="24" r="11" fill="#FDB813"/><path d="M50 50H22a9 9 0 0 1-.9-17.95A13 13 0 0 1 46 33a8.5 8.5 0 0 1 4 17z" fill="#fff"/></svg>
+        <span class="brand-name" data-i18n="appName">Skycast</span>
+      </div>
+      <div class="controls">
+        <button class="seg" id="tempToggle" type="button" aria-label="Temperature unit">
+          <span data-v="c">°C</span><span data-v="f">°F</span>
+        </button>
+        <button class="seg" id="windToggle" type="button" aria-label="Wind unit">
+          <span data-v="kmh" data-i18n="kmh">km/h</span><span data-v="mph" data-i18n="mph">mph</span>
+        </button>
+        <button class="seg" id="langToggle" type="button" aria-label="Language">
+          <span data-v="en">EN</span><span data-v="ar">ع</span>
+        </button>
+        <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle dark mode">
+          <svg class="ico-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <svg class="ico-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- ───────── Search ───────── -->
+    <div class="search-wrap">
+      <div class="search" role="combobox" aria-haspopup="listbox" aria-owns="suggestions" aria-expanded="false" id="searchBox">
+        <svg class="search-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="searchInput" type="search" autocomplete="off" spellcheck="false"
+               aria-autocomplete="list" aria-controls="suggestions"
+               data-i18n-placeholder="searchPlaceholder" placeholder="Search for a city…" />
+        <button id="locateBtn" class="icon-btn small" type="button" data-i18n-title="useMyLocation" title="Use my location">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg>
+        </button>
+      </div>
+      <ul id="suggestions" class="suggestions" role="listbox" hidden></ul>
+    </div>
+
+    <!-- Favorites chips -->
+    <nav id="favorites" class="favorites" aria-label="Favorites"></nav>
+
+    <!-- Offline / error banner -->
+    <div id="banner" class="banner" role="status" hidden></div>
+
+    <!-- Full-page error state (shown only when there is no data at all) -->
+    <section id="errorState" class="card error-state" hidden>
+      <div class="error-ico" aria-hidden="true">⚠️</div>
+      <h2 id="errorTitle"></h2>
+      <p id="errorMsg"></p>
+      <button id="retryBtn" class="btn" type="button" data-i18n="retry">Try again</button>
+    </section>
+
+    <!-- ───────── Main dashboard ───────── -->
+    <main id="dashboard" class="grid is-loading">
+      <!-- Current conditions -->
+      <section class="card hero" id="hero" aria-live="polite">
+        <div class="hero-top">
+          <div class="place">
+            <h1 id="cityName" class="city"><span class="sk sk-title"></span></h1>
+            <p id="cityMeta" class="muted"><span class="sk sk-line"></span></p>
+          </div>
+          <button id="favBtn" class="icon-btn fav" type="button" aria-pressed="false" data-i18n-title="addFavorite" title="Add to favorites">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/></svg>
+          </button>
+        </div>
+        <div class="clock-row">
+          <span id="clock" class="clock"><span class="sk sk-line"></span></span>
+          <span id="date" class="muted"></span>
+        </div>
+        <div class="hero-main">
+          <div id="heroIcon" class="hero-icon"><span class="sk sk-circle"></span></div>
+          <div>
+            <div id="temp" class="temp"><span class="sk sk-big"></span></div>
+            <div id="condition" class="condition"></div>
+          </div>
+        </div>
+        <div class="hero-sub">
+          <span id="feels"></span>
+          <span id="hilo"></span>
+        </div>
+        <div class="updated">
+          <span class="pulse" aria-hidden="true"></span>
+          <span id="updated"></span>
+          <button id="refreshBtn" class="link-btn" type="button" data-i18n="refresh">Refresh</button>
+        </div>
+      </section>
+
+      <!-- Details tiles -->
+      <section class="details" id="details" aria-label="Details"></section>
+
+      <!-- Hourly -->
+      <section class="card hourly" aria-labelledby="hourlyTitle">
+        <h2 id="hourlyTitle" class="card-title" data-i18n="hourly">Next 24 hours</h2>
+        <div class="hourly-scroll" id="hourlyScroll">
+          <div class="hourly-strip" id="hourlyStrip"></div>
+          <div class="chart" id="chart"></div>
+        </div>
+      </section>
+
+      <!-- Daily -->
+      <section class="card daily" aria-labelledby="dailyTitle">
+        <h2 id="dailyTitle" class="card-title" data-i18n="daily">7-day forecast</h2>
+        <ol class="daily-list" id="dailyList"></ol>
+      </section>
+
+      <!-- Air quality -->
+      <section class="card air" aria-labelledby="airTitle">
+        <h2 id="airTitle" class="card-title" data-i18n="airQuality">Air quality</h2>
+        <div id="air"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span data-i18n="poweredBy">Weather data by</span>
+      <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo</a>
+      <button id="installBtn" class="btn small" type="button" hidden data-i18n="install">Install app</button>
+    </footer>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
